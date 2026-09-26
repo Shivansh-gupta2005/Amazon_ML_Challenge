@@ -1,0 +1,17 @@
+# EXTRA dependencies for the v5 semantic-embedding stage (--use-embeddings).
+# The CPU pipeline (requirements.txt) does NOT need these; install them only on the
+# GPU box where you run embeddings. All permissively licensed (Apache-2.0 / MIT / BSD).
+#
+# Install PyTorch matching your CUDA (see https://pytorch.org). On an AWS Deep Learning
+# AMI, torch is already present, so you usually only need the two lines below.
+#
+#   pip install -r requirements-embeddings.txt
+#
+sentence-transformers>=3.0        # Apache-2.0; pulls transformers + tokenizers
+faiss-cpu>=1.8                     # MIT; ANN search (use faiss-gpu instead if you prefer)
+# torch>=2.1                       # usually preinstalled on the Deep Learning AMI
+#
+# Models downloaded once, then used offline (weights only; no external data about the
+# entities). Both are well under the 8B-parameter cap:
+#   embeddings : sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  (~118M, Apache-2.0)
+#   cross-enc  : cross-encoder/mmarco-mMiniLMv2-L12-H384-v1                    (~118M, Apache-2.0)
