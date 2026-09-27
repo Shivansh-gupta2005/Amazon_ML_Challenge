@@ -21,6 +21,8 @@ class Config:
     data_dir: str = "dataset"
     output_dir: str = "output"
     model_dir: str = "artifacts"
+    cache_dir: str = "cache"
+    use_cache: bool = True
 
     train_subdir: str = "train"
     test_subdir: str = "test"

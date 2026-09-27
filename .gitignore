@@ -1,6 +1,9 @@
 Amazon ML Challenge/dataset/
 Amazon ML Challenge/output/
+Amazon ML Challenge/cache/
+cache/
 __pycache__/
 *.py[cod]
 *$py.class
+
 

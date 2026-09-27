@@ -29,6 +29,10 @@ def build_config(args) -> Config:
     cfg.data_dir = args.data_dir
     cfg.output_dir = args.output_dir
     cfg.model_dir = args.model_dir
+    if hasattr(args, "cache_dir") and args.cache_dir is not None:
+        cfg.cache_dir = args.cache_dir
+    if hasattr(args, "no_cache") and args.no_cache:
+        cfg.use_cache = False
     if args.knn is not None:
         cfg.knn_name = args.knn
     if args.min_threshold is not None:
@@ -79,6 +83,8 @@ def main(argv=None) -> int:
     ap.add_argument("--data-dir", default="dataset")
     ap.add_argument("--output-dir", default="output")
     ap.add_argument("--model-dir", default="artifacts")
+    ap.add_argument("--cache-dir", default="cache", help="directory to store preprocessed text and matrices cache")
+    ap.add_argument("--no-cache", action="store_true", help="bypass reading from / writing to precomputed cache")
     ap.add_argument("--knn", type=int, default=None, help="nearest neighbours per source in blocking")
     ap.add_argument("--min-threshold", type=float, default=None, help="floor for decision threshold")
     ap.add_argument("--val-fraction", type=float, default=None, help="validation split fraction")

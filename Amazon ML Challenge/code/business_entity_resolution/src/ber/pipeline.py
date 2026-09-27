@@ -8,6 +8,7 @@ incrementally so nothing large is held in memory.
 from __future__ import annotations
 
 import os
+import pickle
 import time
 from typing import Dict, List, Optional, Set
 
@@ -78,6 +79,46 @@ class Context:
 
     def rows_for_ids(self, ids) -> np.ndarray:
         return self.id_index.get_indexer(pd.Index(list(ids)))
+
+    @classmethod
+    def get_or_create(cls, cfg: Config, split: str = "train") -> "Context":
+        cache_file = None
+        if getattr(cfg, "use_cache", True) and getattr(cfg, "cache_dir", None):
+            os.makedirs(cfg.cache_dir, exist_ok=True)
+            cache_file = os.path.join(cfg.cache_dir, f"context_{split}.pkl")
+            if os.path.isfile(cache_file):
+                log(f"found cached {split} context -> {cache_file}")
+                try:
+                    t_start = time.time()
+                    with open(cache_file, "rb") as fh:
+                        ctx = pickle.load(fh)
+                    log(f"loaded cached {split} context in {time.time() - t_start:.1f}s (N={ctx.N})")
+                    return ctx
+                except Exception as e:
+                    log(f"warning: failed to load cache ({e}); recomputing from raw sources ...")
+
+        paths = io_utils.resolve_source_paths(cfg, split)
+        subdir = getattr(cfg, f"{split}_subdir")
+        log(f"loading {split} sources from {os.path.join(cfg.data_dir, subdir)}")
+        s1 = io_utils.read_source(paths["source1"])
+        s2 = io_utils.read_source(paths["source2"])
+        s3 = io_utils.read_source(paths["source3"])
+        log(f"{split} records: S1={len(s1)} S2={len(s2)} S3={len(s3)}")
+        ctx = cls(cfg, s1, s2, s3)
+        del s1, s2, s3
+
+        if getattr(cfg, "use_cache", True) and cache_file:
+            log(f"saving {split} context to cache: {cache_file} ...")
+            try:
+                t_save = time.time()
+                with open(cache_file, "wb") as fh:
+                    pickle.dump(ctx, fh, protocol=pickle.HIGHEST_PROTOCOL)
+                mb = os.path.getsize(cache_file) / (1024 * 1024)
+                log(f"saved {split} context cache ({mb:.1f} MB in {time.time() - t_save:.1f}s)")
+            except Exception as e:
+                log(f"warning: failed to save cache ({e})")
+
+        return ctx
 
 
 # ------------------------------------------------------------------- labelling
@@ -196,15 +237,10 @@ def estimate_cold_threshold(cfg: Config, ctx: Context, cand: Dict[str, np.ndarra
 # ------------------------------------------------------------------- training
 def train_and_validate(cfg: Config):
     paths = io_utils.resolve_source_paths(cfg, "train")
-    log(f"loading train sources from {os.path.join(cfg.data_dir, cfg.train_subdir)}")
-    s1 = io_utils.read_source(paths["source1"])
-    s2 = io_utils.read_source(paths["source2"])
-    s3 = io_utils.read_source(paths["source3"])
     gt = io_utils.read_ground_truth(paths["ground_truth"])
-    log(f"records: S1={len(s1)} S2={len(s2)} S3={len(s3)} | gt entities={len(gt)}")
+    log(f"gt entities={len(gt)}")
 
-    ctx = Context(cfg, s1, s2, s3)
-    del s1, s2, s3
+    ctx = Context.get_or_create(cfg, "train")
 
     # subsample Source-1 entities for training
     rng = np.random.default_rng(cfg.lgbm_params["random_state"])
@@ -306,15 +342,7 @@ def train_and_validate(cfg: Config):
 def predict_test(cfg: Config, clf, threshold: float,
                  cold_threshold: Optional[float] = None,
                  train_countries: Optional[List[str]] = None) -> dict:
-    paths = io_utils.resolve_source_paths(cfg, "test")
-    log(f"loading test sources from {os.path.join(cfg.data_dir, cfg.test_subdir)}")
-    s1 = io_utils.read_source(paths["source1"])
-    s2 = io_utils.read_source(paths["source2"])
-    s3 = io_utils.read_source(paths["source3"])
-    log(f"test records: S1={len(s1)} S2={len(s2)} S3={len(s3)}")
-
-    ctx = Context(cfg, s1, s2, s3)
-    del s1, s2, s3
+    ctx = Context.get_or_create(cfg, "test")
     all_s1_ids = ctx.s1_ids()
 
     log("blocking (all test entities) ...")
